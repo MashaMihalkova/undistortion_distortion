@@ -101,13 +101,14 @@ def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray
             if x_i != 0 and y_j != 0:
 
                 und_x, und_y = calc_undistortion_coeff(x, y)
-
+                # AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
                 # region check x==und_x and y==und_y
                 r = und_x * und_x + und_y * und_y
                 newx = und_x * (1 + 0.2 * r)
                 newy = und_y * (1 + 0.2 * r)
                 # und_x = newx
                 # und_y = newy
+
                 if round(newx, 4) != round(x, 4):
                     print(f'newx = {round(newx, 4)}, x = {round(x, 4)}')
                 if round(newy, 4) != round(y, 4):
