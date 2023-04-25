@@ -6,6 +6,11 @@ import cv2
 import math
 import statistics
 
+from warpOF import gen_flow_shift, image_warp
+
+FX = 1000
+FY = 1000
+
 
 def apply_dist(img: np.ndarray, coefficients: List[float]) -> np.ndarray:
     rows, cols, chn = img.shape
@@ -13,8 +18,8 @@ def apply_dist(img: np.ndarray, coefficients: List[float]) -> np.ndarray:
     dst_img = np.zeros((rows, cols, chn))
 
     # Set internal parameters
-    fx = 1000  # 2414.55  # 779.423
-    fy = 1000  # 2413.54  # 779.423
+    fx = FX  # 2414.55  # 779.423
+    fy = FY  # 2413.54  # 779.423
     cx = img.shape[0] // 2
     cy = img.shape[1] // 2
 
@@ -108,8 +113,8 @@ def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray
     dst_img = np.zeros((rows, cols, chn))
     dst_img_ = np.zeros((cols, rows, chn))
     # Set internal parameters
-    fx = 1000
-    fy = 1000
+    fx = FX
+    fy = FY
     cx = img.shape[0] // 2
     cy = img.shape[1] // 2
     mismatch_x = []
@@ -195,16 +200,59 @@ def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray
     return dst_img, dst_img_
 
 
-img = cv2.imread("data/chess3.jpg", 1)
-# img = cv2.resize(img, (388,388))
-# cv2.imwrite('cat_res.jpg', img)
-dst_img = apply_dist(img, [0.2, 0, 0])
-cv2.imwrite("chess3_dist.jpg", dst_img)
+def main_method(path_img: str, const_shift: int) -> None:
+    # region apply distortion  (S2)
+    img = cv2.imread(path_img, 1)
+    dst_chess2 = apply_dist(img, [0.2, 0, 0])
+    cv2.imwrite("data_test/chess2_dist.jpg", dst_chess2)
+    # endregion
 
-dst_img = cv2.imread("chess3_dist.jpg", 1)
-img_und, img_und_ = apply_undist(dst_img, [0.2, 0, 0])
-cv2.imwrite("chess3_undist.jpg", img_und)
-cv2.imwrite("chess3_undist_.jpg", img_und_)
+    # region undistort obtained dist_img  (R2)
+    _, undist_chess2 = apply_undist(dst_chess2, [0.2, 0, 0])
+    cv2.imwrite("data_test/undist_chess2.jpg", undist_chess2)
+    # endregion
+
+    # region apply warp OF  (R1)
+    const_shift = const_shift
+    flow = gen_flow_shift(height=undist_chess2.shape[0], width=undist_chess2.shape[1], shift=const_shift)
+    warp_chess1_undist = image_warp(undist_chess2, flow)
+    cv2.imwrite('data_test/warp_chess1_undist.png', warp_chess1_undist)
+    # endregion
+
+    # region apply distortion to warp_chess1  (S1)
+    dst_chess1 = apply_dist(warp_chess1_undist, [0.2, 0, 0])
+    cv2.imwrite("data_test/chess1_dist.jpg", dst_chess1)
+    # endregion
+
+
+def developed_method(path_img: str, const_shift: int) -> None:
+    # region apply distortion  (S2)
+    img = cv2.imread(path_img, 1)
+    dst_chess2 = apply_dist(img, [0.2, 0, 0])
+    cv2.imwrite("data_test/chess2_dist.jpg", dst_chess2)
+    # endregion
+
+    # region undistort obtained dist_img  (R2)
+    _, undist_chess2 = apply_undist(dst_chess2, [0.2, 0, 0])
+    cv2.imwrite("data_test/undist_chess2.jpg", undist_chess2)
+    # endregion
+
+    # region apply warp OF  (R1)
+    const_shift = const_shift
+    flow = gen_flow_shift(height=undist_chess2.shape[0], width=undist_chess2.shape[1], shift=const_shift)
+    warp_chess1_undist = image_warp(undist_chess2, flow)
+    cv2.imwrite('data_test/warp_chess1_undist.png', warp_chess1_undist)
+    # endregion
+
+    # region apply distortion to warp_chess1  (S1)
+    dst_chess1 = apply_dist(warp_chess1_undist, [0.2, 0, 0])
+    cv2.imwrite("data_test/chess1_dist.jpg", dst_chess1)
+    # endregion
+
+
+main_method(path_img="data/chess3.jpg", const_shift=50)
+
+
 
 # fx = 1000  # 2414.55  # 779.423
 # fy = 1000
