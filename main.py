@@ -1,5 +1,6 @@
 import math
 import cv2
+import matplotlib.pyplot as plt
 import numpy as np
 
 x_c: int
@@ -82,6 +83,7 @@ def apply_distortion(img: np.ndarray, K: np.ndarray, k1: float, k2: float = 0) -
     return distort_img
 
 
+plt.imsave()
 path_img = 'data/chess.jpg'
 
 img = cv2.imread(path_img)
