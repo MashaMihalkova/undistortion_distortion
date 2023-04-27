@@ -116,5 +116,5 @@ def image_warp(im, flow, mode='bilinear'):
     return warped
 
 
-def gen_flow_shift(height: int, width: int, shift: int) -> np.ndarray:
+def gen_flow_shift(height: int, width: int, shift: float) -> np.ndarray:
     return np.ones((height, width, 2), dtype=np.float32) * shift

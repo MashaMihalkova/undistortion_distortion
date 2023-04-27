@@ -1,5 +1,5 @@
 # Add radial distortion to GS image
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 
 import numpy as np
 import cv2
@@ -8,11 +8,11 @@ import statistics
 
 from warpOF import gen_flow_shift, image_warp
 
-FX = 1000
-FY = 1000
+FX = 1000 // 8
+FY = 1000 // 8
 
 
-def apply_dist(img: np.ndarray, coefficients: List[float]) -> np.ndarray:
+def apply_dist(img: np.ndarray, coefficients: List[float], warp_coef: Optional[float]=None) -> np.ndarray:
     rows, cols, chn = img.shape
 
     dst_img = np.zeros((rows, cols, chn))
@@ -49,10 +49,14 @@ def apply_dist(img: np.ndarray, coefficients: List[float]) -> np.ndarray:
             #     mismatch_y.append(round(newy, 4) - round(y_un, 4))
             #     print(f'newy = {round(newy, 4)}, y = {round(y, 4)}')
 
-
             # Then go to the image coordinate system
-            u = newx * fx + cx
-            v = newy * fy + cy
+            if warp_coef is not None:
+                u = newx * fx + cx + warp_coef
+                v = newy * fy + cy + warp_coef
+            else:
+
+                u = newx * fx + cx
+                v = newy * fy + cy
 
             # Bilinear interpolation
             u0 = math.floor(u)  # //Equivalent to the x coordinate in the above formula is 0
@@ -107,7 +111,8 @@ def calc_undistortion_coeff(i: int, j: int) -> Tuple[float, float]:
     return und_x, und_y
 
 
-def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray, np.ndarray]:
+# def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray, np.ndarray]:
+def apply_undist(img: np.ndarray, coefficients: List[float], warp_coef: Optional[float] = None) -> np.ndarray:
     rows, cols, chn = img.shape
 
     dst_img = np.zeros((rows, cols, chn))
@@ -160,8 +165,12 @@ def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray
                 # und_y = y_j
 
             # Then go to the image coordinate system
-            u = und_x * fx + cx
-            v = und_y * fy + cy
+            if warp_coef is not None:
+                u = und_x * fx + cx + warp_coef
+                v = und_y * fy + cy + warp_coef
+            else:
+                u = und_x * fx + cx
+                v = und_y * fy + cy
 
             # Bilinear interpolation
             u0 = math.floor(u)  # //Equivalent to the x coordinate in the above formula is 0
@@ -197,61 +206,95 @@ def apply_undist(img: np.ndarray, coefficients: List[float]) -> Tuple[np.ndarray
         print(f'min y = {min(mismatch_y)}')
         print(f'avg y = {statistics.mean(map(abs, mismatch_y))}')
 
-    return dst_img, dst_img_
+    # return dst_img, dst_img_
+    return dst_img_
+
+
+def warp_flow(img, flow):
+    h, w = flow.shape[:2]
+    flow = -flow
+    flow[:,:,0] += np.arange(w)
+    flow[:,:,1] += np.arange(h)[:,np.newaxis]
+    res = cv2.remap(img, flow, None, cv2.INTER_LINEAR)
+    return res
 
 
 def main_method(path_img: str, const_shift: int) -> None:
     # region apply distortion  (S2)
     img = cv2.imread(path_img, 1)
     dst_chess2 = apply_dist(img, [0.2, 0, 0])
-    cv2.imwrite("data_test/chess2_dist.jpg", dst_chess2)
+    cv2.imwrite("data_test/S2.jpg", dst_chess2)
     # endregion
 
     # region undistort obtained dist_img  (R2)
     _, undist_chess2 = apply_undist(dst_chess2, [0.2, 0, 0])
-    cv2.imwrite("data_test/undist_chess2.jpg", undist_chess2)
+    cv2.imwrite("data_test/R2.jpg", undist_chess2)
     # endregion
 
     # region apply warp OF  (R1)
     const_shift = const_shift
     flow = gen_flow_shift(height=undist_chess2.shape[0], width=undist_chess2.shape[1], shift=const_shift)
     warp_chess1_undist = image_warp(undist_chess2, flow)
-    cv2.imwrite('data_test/warp_chess1_undist.png', warp_chess1_undist)
+    cv2.imwrite('data_test/R1.png', warp_chess1_undist)
     # endregion
 
     # region apply distortion to warp_chess1  (S1)
     dst_chess1 = apply_dist(warp_chess1_undist, [0.2, 0, 0])
-    cv2.imwrite("data_test/chess1_dist.jpg", dst_chess1)
+    cv2.imwrite("data_test/S1.jpg", dst_chess1)
     # endregion
 
 
-def developed_method(path_img: str, const_shift: int) -> None:
-    # region apply distortion  (S2)
-    img = cv2.imread(path_img, 1)
-    dst_chess2 = apply_dist(img, [0.2, 0, 0])
-    cv2.imwrite("data_test/chess2_dist.jpg", dst_chess2)
-    # endregion
-
-    # region undistort obtained dist_img  (R2)
-    _, undist_chess2 = apply_undist(dst_chess2, [0.2, 0, 0])
-    cv2.imwrite("data_test/undist_chess2.jpg", undist_chess2)
-    # endregion
-
-    # region apply warp OF  (R1)
-    const_shift = const_shift
-    flow = gen_flow_shift(height=undist_chess2.shape[0], width=undist_chess2.shape[1], shift=const_shift)
-    warp_chess1_undist = image_warp(undist_chess2, flow)
-    cv2.imwrite('data_test/warp_chess1_undist.png', warp_chess1_undist)
-    # endregion
-
-    # region apply distortion to warp_chess1  (S1)
-    dst_chess1 = apply_dist(warp_chess1_undist, [0.2, 0, 0])
-    cv2.imwrite("data_test/chess1_dist.jpg", dst_chess1)
-    # endregion
+def developed_method(path_img: str, const_shift: float) -> None:
+    R2 = cv2.imread(path_img, 1)
+    new_S1 = np.zeros_like(R2)
+    new_S1_w = np.zeros_like(R2)
+    flow = gen_flow_shift(height=R2.shape[0], width=R2.shape[1], shift=const_shift)
 
 
-main_method(path_img="data/chess3.jpg", const_shift=50)
+    # new_S1 = image_warp(apply_undist(R2, [0.2, 0, 0]), flow)
+    # new_S1_w = apply_undist(R2, [0.2, 0, 0], const_shift)
+    # new_S1 = image_warp(apply_dist(R2, [0.2, 0, 0]), flow)
+    new_S1 = image_warp(apply_dist(R2, [0.2, 0, 0]), flow)
 
+    # new_S1_minus_w = apply_dist(R2, [0.2, 0, 0], -0.5)
+    new_S1_plus_w = apply_dist(R2, [0.2, 0, 0], 0.5)
+
+    cv2.imwrite('dataset/dis_S1.png', new_S1)
+    # cv2.imwrite('dataset/dis_S1_minus_w.png', new_S1_minus_w)
+    cv2.imwrite('dataset/dis_S1_plus_w.png', new_S1_plus_w)
+
+
+# main_method(path_img="data/chess3.jpg", const_shift=4)
+# S1 = cv2.imread("dataset/big_img/R1.png", 1)
+# S2 = cv2.imread("dataset/big_img/R2.jpg", 1)
+# scale_percent = 8 # percent of original size
+# width = int(S1.shape[1] / scale_percent)
+# height = int(S1.shape[0] / scale_percent )
+# S1_r = cv2.resize(S1, (width, height))
+# S2_r = cv2.resize(S2, (width, height))
+# cv2.imwrite('dataset/res_R1.png', S1_r)
+# cv2.imwrite('dataset/res_R2.png', S2_r)
+#
+# S1 = cv2.imread("dataset/big_img/S1.jpg", 1)
+# S2 = cv2.imread("dataset/big_img/S2.jpg", 1)
+# scale_percent = 8 # percent of original size
+# width = int(S1.shape[1] / scale_percent)
+# height = int(S1.shape[0] / scale_percent )
+# S1_r = cv2.resize(S1, (width, height))
+# S2_r = cv2.resize(S2, (width, height))
+# cv2.imwrite('dataset/res_S1.png', S1_r)
+# cv2.imwrite('dataset/res_S2.png', S2_r)
+
+# R1_res = cv2.imread("dataset/res_R1.png", 1)
+# R2_res = cv2.imread("dataset/res_R2.png", 1)
+#
+# S1 = apply_dist(R1_res, [0.2, 0, 0])
+# cv2.imwrite("dataset/S1_res.png", S1)
+# S2 = apply_dist(R2_res, [0.2, 0, 0])
+# cv2.imwrite("dataset/S2_res.png", S2)
+
+
+developed_method(path_img="dataset/res_R2.png", const_shift=0.5)
 
 
 # fx = 1000  # 2414.55  # 779.423
